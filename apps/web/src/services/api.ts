@@ -4,7 +4,16 @@ import type {
   SearchResponse,
   AvailabilityResponse,
   ReviewListResponse,
+  ProcessPaymentData,
+  PaymentResult,
 } from '../types/hotel';
+
+import type {
+  CreateBookingData,
+  BookingResponse,
+  BookingDetail,
+  CancellationResult,
+} from '../types/booking';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001/api';
 
@@ -70,6 +79,26 @@ export async function canWriteReview(hotelId: string): Promise<{ canReview: bool
     params: { hotelId },
   });
   return data;
+}
+
+export async function createBooking(data: CreateBookingData): Promise<BookingResponse> {
+  const response = await api.post<BookingResponse>('/bookings', data);
+  return response.data;
+}
+
+export async function getBooking(bookingId: string): Promise<BookingDetail> {
+  const { data } = await api.get<BookingDetail>(`/bookings/${bookingId}`);
+  return data;
+}
+
+export async function cancelBooking(bookingId: string): Promise<CancellationResult> {
+  const { data } = await api.put<CancellationResult>(`/bookings/${bookingId}/cancel`);
+  return data;
+}
+
+export async function processPayment(data: ProcessPaymentData): Promise<PaymentResult> {
+  const { data: result } = await api.post<PaymentResult>('/payments/process', data);
+  return result;
 }
 
 export { queryClient } from '../lib/api/queryClient';

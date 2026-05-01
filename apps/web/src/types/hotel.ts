@@ -83,3 +83,19 @@ export interface SearchFilters {
   sortBy: 'price_asc' | 'price_desc' | 'rating_desc' | 'relevance';
   page: number;
 }
+
+// Payment types
+export interface ProcessPaymentData {
+  bookingId: string;
+  paymentMethod: 'credit_card' | 'debit_card';
+  cardToken: string;
+  idempotencyKey?: string;
+}
+
+export interface PaymentResult {
+  success: boolean;
+  transactionId: string;
+  amount: number;
+  paymentMethod: string;
+  cardLast4?: string;
+}
