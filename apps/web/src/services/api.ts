@@ -15,6 +15,8 @@ import type {
   CancellationResult,
 } from '../types/booking';
 
+import type { AdminDashboardData, BookingFilters, AdminBookingListResponse, AdminBooking, RoomManagementItem, CreateRoomData, UpdateRoomData, HotelProfileData, UpdateHotelData } from '../types/admin';
+
 const API_BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001/api';
 
 export const api = axios.create({
@@ -104,6 +106,69 @@ export async function getUserBookings(): Promise<BookingDetail[]> {
 export async function processPayment(data: ProcessPaymentData): Promise<PaymentResult> {
   const { data: result } = await api.post<PaymentResult>('/payments/process', data);
   return result;
+}
+
+// Admin Dashboard
+export async function getAdminDashboard(): Promise<AdminDashboardData> {
+  const { data } = await api.get<AdminDashboardData>('/hotel-admin/dashboard');
+  return data;
+}
+
+// Admin Bookings
+export async function getHotelAdminBookings(filters: BookingFilters = {}): Promise<AdminBookingListResponse> {
+  const { data } = await api.get<AdminBookingListResponse>('/hotel-admin/bookings', { params: filters });
+  return data;
+}
+
+export async function confirmBooking(id: string): Promise<AdminBooking> {
+  const { data } = await api.put<AdminBooking>(`/hotel-admin/bookings/${id}/confirm`);
+  return data;
+}
+
+export async function checkInBooking(id: string): Promise<AdminBooking> {
+  const { data } = await api.put<AdminBooking>(`/hotel-admin/bookings/${id}/check-in`);
+  return data;
+}
+
+export async function checkOutBooking(id: string): Promise<AdminBooking> {
+  const { data } = await api.put<AdminBooking>(`/hotel-admin/bookings/${id}/check-out`);
+  return data;
+}
+
+export async function cancelBookingAdmin(id: string): Promise<AdminBooking> {
+  const { data } = await api.put<AdminBooking>(`/hotel-admin/bookings/${id}/cancel`);
+  return data;
+}
+
+// Rooms
+export async function getHotelRooms(hotelId: string): Promise<RoomManagementItem[]> {
+  const { data } = await api.get<RoomManagementItem[]>(`/hotels/${hotelId}/rooms`);
+  return data;
+}
+
+export async function createRoom(hotelId: string, roomData: CreateRoomData): Promise<RoomManagementItem> {
+  const { data } = await api.post<RoomManagementItem>(`/hotels/${hotelId}/rooms`, roomData);
+  return data;
+}
+
+export async function updateRoom(hotelId: string, roomId: string, roomData: UpdateRoomData): Promise<RoomManagementItem> {
+  const { data } = await api.put<RoomManagementItem>(`/hotels/${hotelId}/rooms/${roomId}`, roomData);
+  return data;
+}
+
+export async function deleteRoom(hotelId: string, roomId: string): Promise<void> {
+  await api.delete(`/hotels/${hotelId}/rooms/${roomId}`);
+}
+
+// Hotel Profile
+export async function getHotelProfile(hotelId: string): Promise<HotelProfileData> {
+  const { data } = await api.get<HotelProfileData>(`/hotels/${hotelId}`);
+  return data;
+}
+
+export async function updateHotelProfile(hotelId: string, hotelData: UpdateHotelData): Promise<HotelProfileData> {
+  const { data } = await api.put<HotelProfileData>(`/hotels/${hotelId}`, hotelData);
+  return data;
 }
 
 export { queryClient } from '../lib/api/queryClient';

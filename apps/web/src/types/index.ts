@@ -22,3 +22,4 @@ export * from './hotel';
 // booking.ts exports BookingDetail, CreateBookingData, CancellationResult which conflict with hotel.ts
 // Import directly from booking.ts for PaymentDetail
 export type { PaymentDetail } from './booking';
+export * from './admin';

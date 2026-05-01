@@ -51,15 +51,15 @@ function App() {
         {/* Hotel Admin routes */}
         <Route
           element={
-            <ProtectedRoute allowedRoles={['hotel_owner']}>
+            <ProtectedRoute allowedRoles={['hotel_owner', 'HOTEL_ADMIN', 'SYSTEM_ADMIN']}>
               <HotelAdminLayout />
             </ProtectedRoute>
           }
         >
-          <Route path="/admin/hotels" element={<div>Hotel Dashboard</div>} />
-          <Route path="/admin/hotels/rooms" element={<div>Rooms</div>} />
-          <Route path="/admin/hotels/bookings" element={<div>Bookings</div>} />
-          <Route path="/admin/hotels/profile" element={<ProfilePage />} />
+          <Route path="/hotel-admin/dashboard" element={<div>Hotel Dashboard</div>} />
+          <Route path="/hotel-admin/rooms" element={<div>Rooms</div>} />
+          <Route path="/hotel-admin/bookings" element={<div>Bookings</div>} />
+          <Route path="/hotel-admin/hotel-profile" element={<div>Hotel Profile</div>} />
         </Route>
 
         {/* Global Admin routes */}
