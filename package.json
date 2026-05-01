@@ -1,0 +1,20 @@
+{
+  "name": "hotel-reservation-system",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:api": "yarn workspace @hotel/api dev",
+    "dev:web": "yarn workspace @hotel/web dev",
+    "build:api": "yarn workspace @hotel/api build",
+    "build:web": "yarn workspace @hotel/web build",
+    "lint:api": "yarn workspace @hotel/api lint",
+    "lint:web": "yarn workspace @hotel/web lint"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0"
+  }
+}

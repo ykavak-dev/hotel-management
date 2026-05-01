@@ -1,0 +1,248 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  CUSTOMER
+  HOTEL_ADMIN
+  SYSTEM_ADMIN
+}
+
+enum RoomType {
+  SINGLE
+  DOUBLE
+  SUITE
+  DELUXE
+  FAMILY
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+  NO_SHOW
+}
+
+enum PaymentMethod {
+  CREDIT_CARD
+  DEBIT_CARD
+  BANK_TRANSFER
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+enum HotelOwnerRole {
+  OWNER
+  MANAGER
+}
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String
+  firstName    String
+  lastName     String
+  phone        String?
+  role         UserRole  @default(CUSTOMER)
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  bookings    Booking[]
+  reviews     Review[]
+  ownedHotels Hotel[]
+  hotelOwners HotelOwner[]
+  refreshTokens RefreshToken[]
+  adminLogs   AdminActivityLog[]
+
+  @@index([email])
+  @@index([role])
+  @@index([isActive])
+  @@map("users")
+}
+
+model Hotel {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  address     String
+  city        String
+  country     String
+  latitude    Float?
+  longitude   Float?
+  starRating  Int?
+  amenities   String[]
+  images      String[]
+  isVerified      Boolean  @default(false)
+  rejectionReason String?
+  averageRating   Float?
+  ownerId         String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  owner      User         @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  rooms      Room[]
+  reviews    Review[]
+  hotelOwners HotelOwner[]
+
+  @@index([city])
+  @@index([country])
+  @@index([isVerified])
+  @@index([ownerId])
+  @@index([name])
+  @@index([name, description, city])
+  @@index([averageRating])
+  @@map("hotels")
+}
+
+model Room {
+  id             String   @id @default(cuid())
+  hotelId        String
+  type           RoomType
+  description    String?
+  pricePerNight  Decimal  @db.Decimal(10, 2)
+  capacity       Int
+  bedType        String?
+  roomSize       Float?
+  amenities      String[]
+  images         String[]
+  totalQuantity  Int      @default(1)
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  hotel    Hotel     @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  bookings Booking[]
+
+  @@index([hotelId])
+  @@index([pricePerNight])
+  @@index([type])
+  @@map("rooms")
+}
+
+model Booking {
+  id              String        @id @default(cuid())
+  userId          String
+  roomId          String
+  checkIn         DateTime
+  checkOut        DateTime
+  numberOfGuests  Int
+  totalPrice      Decimal       @db.Decimal(10, 2)
+  status          BookingStatus @default(PENDING)
+  specialRequests String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  room     Room      @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  payments Payment[]
+  review   Review?
+
+  @@index([userId])
+  @@index([roomId])
+  @@index([status])
+  @@index([checkIn])
+  @@index([checkOut])
+  @@index([roomId, checkIn, checkOut])
+  @@map("bookings")
+}
+
+model Payment {
+  id            String        @id @default(cuid())
+  bookingId     String
+  amount        Decimal       @db.Decimal(10, 2)
+  currency      String        @default("USD")
+  paymentMethod PaymentMethod
+  status        PaymentStatus @default(PENDING)
+  transactionId String?
+  paidAt        DateTime?
+  createdAt     DateTime      @default(now())
+
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@index([bookingId])
+  @@index([status])
+  @@index([transactionId])
+  @@map("payments")
+}
+
+model Review {
+  id          String   @id @default(cuid())
+  userId      String
+  hotelId     String
+  bookingId   String   @unique
+  rating      Int
+  comment     String
+  isApproved  Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  hotel   Hotel   @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([hotelId])
+  @@index([rating])
+  @@index([isApproved])
+  @@map("reviews")
+}
+
+model HotelOwner {
+  id        String         @id @default(cuid())
+  userId    String
+  hotelId   String
+  role      HotelOwnerRole @default(OWNER)
+  createdAt DateTime       @default(now())
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  hotel Hotel @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, hotelId])
+  @@index([userId])
+  @@index([hotelId])
+  @@map("hotel_owners")
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+  @@map("refresh_tokens")
+}
+
+model AdminActivityLog {
+  id         String   @id @default(cuid())
+  adminId    String
+  action     String
+  entityType String
+  entityId   String
+  details    Json?
+  createdAt  DateTime @default(now())
+
+  admin User @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([adminId])
+  @@index([entityType])
+  @@index([entityId])
+  @@index([createdAt])
+  @@map("admin_activity_logs")
+}
