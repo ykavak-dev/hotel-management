@@ -5,7 +5,6 @@ import type {
   AvailabilityResponse,
   ReviewListResponse,
 } from '../types/hotel';
-import type { RoomType } from '@hotel/shared';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001/api';
 
