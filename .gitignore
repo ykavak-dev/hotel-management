@@ -41,3 +41,10 @@ apps/api/generated/
 
 # TypeScript
 *.tsbuildinfo
+
+# Next.js build
+.next/
+.cache/
+
+# Hotel UI worktree
+hotel-ui/
