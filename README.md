@@ -150,54 +150,175 @@ bun test --run
 bun test --coverage
 ```
 
-### Test Categories Explained
+---
 
-#### Authentication Tests (13 tests)
-- User registration with validation
-- Login with correct/incorrect credentials
-- Protected route access
-- Role-Based Access Control (RBAC)
-- JWT token handling
+### Detailed Test Cases
 
-#### Hotel Search Tests (18 tests)
-- Search by location
-- Filter by price range
-- Filter by room type
-- Filter by amenities
-- Combined filters
-- Empty results handling
+#### Authentication Tests (13 tests) — `auth.test.tsx`
 
-#### Room Availability & Booking Tests (36 tests)
-- Check room availability for date range
-- Create booking with valid data
-- **Double booking prevention** — Overlapping date validation
-- Cancel booking
-- View user's bookings
-- Error handling for unavailable rooms
+Tests for user registration, login, and access control:
 
-#### Admin Tests (20 tests)
-- Hotel admin dashboard access
-- Room management (create, update, delete)
-- View hotel bookings
-- System admin access
-- RBAC enforcement (admin routes protected)
+| Test | Description |
+|------|-------------|
+| `returns 201 with user data and token when registration succeeds` | New user can register and receives JWT token |
+| `returns 409 Conflict when email is already registered` | Duplicate email registration is rejected |
+| `returns 400 when password is missing` | Password validation works |
+| `returns 201 with token when login succeeds` | Valid credentials return JWT |
+| `returns 401 when login credentials are invalid` | Wrong password returns unauthorized |
+| `returns 401 when user does not exist` | Non-existent user returns unauthorized |
+| `returns 200 with user data when getting current user` | Protected /me endpoint returns user info |
+| `returns 401 when accessing /me without token` | Unauthenticated access to /me is blocked |
+| `returns 403 when customer tries to access hotel-admin dashboard` | RBAC: CUSTOMER cannot access HOTEL_ADMIN routes |
+| `returns 403 when hotel-admin tries to access system-admin dashboard` | RBAC: HOTEL_ADMIN cannot access SYSTEM_ADMIN routes |
+| `returns 200 when system-admin accesses system-admin dashboard` | RBAC: SYSTEM_ADMIN has full access |
+| `returns 401 when accessing hotel-admin dashboard without token` | Unauthenticated admin access is blocked |
+| `returns 403 when customer tries to access hotel-admin bookings` | RBAC: Customer cannot list hotel bookings |
 
-#### Review Tests (11 tests)
-- Submit review for booked hotel
-- View hotel reviews
-- Rating validation (1-5 stars)
-- Prevent duplicate reviews
-- Review moderation (admin)
+#### Hotel Search Tests (18 tests) — `hotel-search.test.tsx`
 
-#### Integration Tests (9 tests)
-- Complete booking workflow
-- Search → Select → Book → Cancel flow
-- Admin create room → verify availability
-- Double booking prevention (critical)
+Tests for hotel search and filtering:
+
+| Test | Description |
+|------|-------------|
+| `returns all hotels when no filters applied` | Default search returns all hotels |
+| `returns hotels by location (city name)` | Search by city name works |
+| `returns hotels by hotel name` | Search by hotel name works |
+| `returns empty array when no hotels match location` | No results handling works |
+| `filters hotels by price range (minPrice)` | Minimum price filter works |
+| `filters hotels by price range (maxPrice)` | Maximum price filter works |
+| `filters hotels by price range (minPrice and maxPrice)` | Combined price range filter works |
+| `filters hotels by room type` | Room type (SINGLE, DOUBLE, SUITE) filter works |
+| `filters hotels by amenity (wifi)` | Amenity filter (wifi) works |
+| `filters hotels by amenity (parking)` | Amenity filter (parking) works |
+| `filters hotels by multiple amenities` | Multiple amenity filters work |
+| `returns hotels filtered by price above maxPrice` | Price upper bound filter works |
+| `returns hotels filtered by price below minPrice` | Price lower bound filter works |
+| `returns all hotels when only minPrice is provided` | Single bound price filter works |
+| `returns all hotels when only maxPrice is provided` | Single bound price filter works |
+| `search by non-existent city returns empty results` | Invalid city returns empty |
+| `search with no matching filters returns empty` | No matching filters returns empty |
+| `combined city and price filter works correctly` | Multiple filters work together |
+
+#### Room Availability & Booking Tests (36 tests) — `room-availability-booking.test.tsx`
+
+Tests for room availability checking and booking creation:
+
+**Availability Tests:**
+| Test | Description |
+|------|-------------|
+| `returns available when room has free capacity` | Room shows availability when not fully booked |
+| `returns unavailable when room is already booked for overlapping dates` | Availability decreases for booked dates |
+| `returns available for non-overlapping dates` | Different dates show availability |
+
+**Double Booking Prevention Tests (CRITICAL):**
+| Test | Description |
+|------|-------------|
+| `prevents double booking for exact same dates` | Same check-in/check-out blocked (409) |
+| `prevents booking for overlapping dates (contained within existing)` | Inner overlap blocked with DATE_OVERLAP code |
+| `prevents booking for overlapping dates (extends before existing)` | Overlap at start blocked |
+| `prevents booking for overlapping dates (extends after existing)` | Overlap at end blocked |
+| `prevents booking when new booking surrounds existing` | Outer overlap blocked |
+| `prevents booking for completely contained dates` | Contained booking blocked |
+| `allows booking for adjacent dates (check-out = next check-in)` | Adjacent bookings allowed |
+| `allows booking for dates before existing booking` | Earlier booking allowed |
+| `allows booking for dates after existing booking` | Later booking allowed |
+
+**Booking CRUD Tests:**
+| Test | Description |
+|------|-------------|
+| `creates booking with valid data` | Valid booking returns 201 with booking data |
+| `creates booking and returns booking id` | Booking creation returns unique ID |
+| `creates booking with correct status CONFIRMED` | New bookings have CONFIRMED status |
+| `returns 401 when unauthenticated user tries to book` | Unauthenticated booking blocked |
+| `returns 400 when checkIn date is missing` | Missing check-in date validation |
+| `returns 400 when checkOut date is missing` | Missing check-out date validation |
+| `returns 400 when roomId is missing` | Missing room ID validation |
+| `returns 400 when numberOfGuests exceeds capacity` | Guest count validation works |
+| `returns user's bookings with correct structure` | GET /bookings returns user bookings |
+| `returns empty array when user has no bookings` | No bookings returns empty array |
+| `returns booking details by ID` | GET /bookings/:id returns correct data |
+| `returns 404 when booking ID does not exist` | Invalid booking ID returns 404 |
+| `returns 403 when trying to view another user's booking` | IDOR protection works |
+| `cancels booking successfully` | Cancel endpoint returns 200 |
+| `returns 404 when cancelling non-existent booking` | Cancel invalid ID returns 404 |
+| `returns updated booking with CANCELLED status after cancellation` | Cancelled booking shows CANCELLED status |
+| `returns 400 when cancelling already cancelled booking` | Double cancellation blocked |
+
+#### Admin Tests (20 tests) — `admin.test.tsx`
+
+Tests for hotel admin and system admin operations:
+
+**Hotel Admin Authentication & Authorization:**
+| Test | Description |
+|------|-------------|
+| `hotel admin can access dashboard with valid token` | HOTEL_ADMIN can access dashboard |
+| `rejects unauthenticated request to hotel admin dashboard` | 401 for no token |
+| `rejects normal user accessing hotel admin dashboard` | 403 for CUSTOMER role |
+| `rejects system-admin accessing hotel admin dashboard` | 403 for SYSTEM_ADMIN on wrong scope |
+
+**Room Management:**
+| Test | Description |
+|------|-------------|
+| `hotel admin can add room to own hotel` | POST /hotels/:id/rooms works |
+| `hotel admin can update room details` | PUT /hotels/:id/rooms/:roomId works |
+| `hotel admin can delete room from own hotel` | DELETE /hotels/:id/rooms/:roomId works |
+| `rejects hotel admin adding room to another hotel` | Cross-hotel room creation blocked |
+| `hotel admin can view own hotel bookings` | GET /hotel-admin/bookings works |
+| `hotel admin can filter bookings by status` | Status filter on bookings works |
+| `hotel admin can confirm pending booking` | PUT /hotel-admin/bookings/:id/confirm works |
+| `hotel admin can check-in booking` | PUT /hotel-admin/bookings/:id/check-in works |
+| `hotel admin can check-out booking` | PUT /hotel-admin/bookings/:id/check-out works |
+| `hotel admin can cancel booking` | PUT /hotel-admin/bookings/:id/cancel works |
+
+**System Admin Tests:**
+| Test | Description |
+|------|-------------|
+| `system-admin can access system dashboard with valid token` | SYSTEM_ADMIN dashboard access works |
+| `rejects hotel-admin accessing system dashboard` | 403 for HOTEL_ADMIN on SYSTEM_ADMIN route |
+| `system-admin can view all hotels` | GET /admin/hotels works |
+| `system-admin can verify a hotel` | PUT /admin/hotels/:id/verify works |
+| `system-admin can list all users` | GET /admin/users works |
+| `system-admin can update user role` | PUT /admin/users/:id/role works |
+
+#### Review Tests (11 tests) — `review.test.tsx`
+
+Tests for hotel reviews and ratings:
+
+| Test | Description |
+|------|-------------|
+| `authenticated user can submit review` | POST /reviews creates review with 201 |
+| `unauthenticated user cannot submit review` | 401 for unauthenticated review |
+| `rejects review with rating below 1` | Rating validation (min 1) |
+| `rejects review with rating above 5` | Rating validation (max 5) |
+| `rejects review with missing comment` | Comment required validation |
+| `rejects duplicate review from same user for same hotel` | One review per user per hotel |
+| `returns reviews for hotel with pagination` | GET /reviews/hotel/:id with pagination |
+| `returns reviews sorted by creation date (newest first)` | Sort order correct |
+| `calculates correct average rating for hotel` | Average rating calculation correct |
+| `returns empty array when hotel has no reviews` | No reviews returns empty |
+| `system-admin can delete any review` | Admin review deletion works |
+
+#### Integration Tests (9 tests) — `integration.test.tsx`
+
+Full workflow integration tests:
+
+| Test | Description |
+|------|-------------|
+| `Complete booking flow: Register -> Search -> Check Availability -> Book -> View History` | Full user journey from registration to booking |
+| `Admin creates room -> User searches -> User books -> User cancels` | Admin + user workflow |
+| `Double booking prevention: First booking succeeds, second is rejected` | Critical overlap protection |
+| `Hotel verification: System admin verifies hotel -> Hotel appears in search` | Admin verification workflow |
+| `Review workflow: User books -> User reviews -> Review appears on hotel page` | Booking + review flow |
+| `RBAC enforcement: All three roles access their respective endpoints` | Role-based access validation |
+| `Search with multiple filters returns correct results` | Complex filter combinations |
+| `User cannot access other user's booking details` | IDOR protection across flows |
+| `Concurrent booking attempts for same room/dates: First succeeds, second fails` | Race condition handling |
+
+---
 
 ### Double Booking Prevention Algorithm
 
-The system prevents the same room from being double-booked:
+The system prevents the same room from being double-booked using this algorithm:
 
 ```typescript
 function isDateOverlap(
@@ -210,14 +331,30 @@ function isDateOverlap(
 }
 ```
 
-**Test Cases for Overlap Detection:**
-- New booking **contains** existing booking — ❌ Blocked
-- New booking **surrounds** existing booking — ❌ Blocked
-- New booking **overlaps at start** — ❌ Blocked
-- New booking **overlaps at end** — ❌ Blocked
-- New booking **before** existing — ✅ Allowed
-- New booking **after** existing — ✅ Allowed
-- Check-out = next check-in (adjacent) — ✅ Allowed
+**Visual representation of overlap cases:**
+
+```
+Existing Booking:    |==========|
+New Booking:              |==========|    → Overlaps at end     ❌
+
+Existing Booking:              |==========|
+New Booking:    |==========|          → Overlaps at start    ❌
+
+Existing Booking:       |==========|
+New Booking:      |====|               → Contains within      ❌
+
+Existing Booking:   |====|
+New Booking: |====================|    → Surrounds existing   ❌
+
+Existing Booking: |==========|
+New Booking:                    |====| → After (non-overlapping) ✅
+
+Existing Booking:             |==========|
+New Booking: |====|                 → Before (non-overlapping) ✅
+
+Existing Booking: |==========|
+New Booking:                    |==|     → Adjacent (check-out = next check-in) ✅
+```
 
 ### Test Credentials
 
