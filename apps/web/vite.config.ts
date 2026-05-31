@@ -7,10 +7,15 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      '@hotel/shared': path.resolve(__dirname, '../../packages/shared/src'),
     },
   },
   server: {
     port: 3000,
     open: true,
+  },
+  build: {
+    outDir: 'dist',
+    sourcemap: true,
   },
 });

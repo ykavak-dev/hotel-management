@@ -5,7 +5,7 @@ import path from 'path';
 export default defineConfig({
   plugins: [react()],
   test: {
-    setupFiles: ['./src/__tests__/setup.ts'],
+    setupFiles: ['./src/__tests__/setup.tsx'],
     globals: true,
     environment: 'jsdom',
     coverage: {
@@ -25,7 +25,7 @@ export default defineConfig({
         '**/*.d.ts',
       ],
     },
-    include: ['src/__tests__/**/*.test.{ts,tsx}'],
+    include: ['**/src/__tests__/**/*.test.{ts,tsx}'],
   },
   resolve: {
     alias: {

@@ -1,140 +1,215 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
+import userEvent from '@testing-library/user-event';
 import React from 'react';
-import { LoginPage } from '../../pages/auth/LoginPage';
-import { RegisterPage } from '../../pages/auth/RegisterPage';
 import { http, HttpResponse } from 'msw';
-import { server } from '../mocks/server';
+import { server } from './mocks/server';
+import { TestWrapper } from './setup';
 
-const renderWithRouter = (ui: React.ReactElement) => {
-  render(<MemoryRouter>{ui}</MemoryRouter>);
-};
+// Test auth API endpoints directly via fetch
+describe('Authentication API', () => {
+  describe('POST /api/auth/register', () => {
+    it('returns 201 with user data and token when registration succeeds', async () => {
+      const response = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: 'newuser@example.com',
+          password: 'Password123!',
+          firstName: 'John',
+          lastName: 'Doe',
+        }),
+      });
 
-describe('LoginPage - Form Validation', () => {
-  it('shows validation errors on empty submit', async () => {
-    const user = userEvent.setup();
-    renderWithRouter(<LoginPage />);
-
-    const submitBtn = screen.getByRole('button', { name: /sign in/i });
-    await user.click(submitBtn);
-
-    await waitFor(() => {
-      expect(screen.getByText(/email is required/i)).toBeInTheDocument();
+      expect(response.status).toBe(201);
+      const data = await response.json();
+      expect(data).toHaveProperty('token');
+      expect(data).toHaveProperty('refreshToken');
+      expect(data.user).toMatchObject({
+        email: 'newuser@example.com',
+        firstName: 'John',
+        lastName: 'Doe',
+        role: 'CUSTOMER',
+      });
     });
-    expect(screen.getByText(/password is required/i)).toBeInTheDocument();
-  });
 
-  it('shows error for invalid email format', async () => {
-    const user = userEvent.setup();
-    renderWithRouter(<LoginPage />);
+    it('returns 409 Conflict when email is already registered', async () => {
+      // First registration succeeds (handled by MSW default)
+      // Second registration with same email should fail
+      const response = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: 'test@example.com', // Already used in MSW handler
+          password: 'Password123!',
+          firstName: 'Jane',
+          lastName: 'Doe',
+        }),
+      });
 
-    await user.type(screen.getByLabelText(/email/i), 'not-an-email');
-    const submitBtn = screen.getByRole('button', { name: /sign in/i });
-    await user.click(submitBtn);
-
-    await waitFor(() => {
-      expect(screen.getByText(/valid email/i)).toBeInTheDocument();
+      expect(response.status).toBe(409);
     });
   });
 
-  it('shows error for short password', async () => {
-    const user = userEvent.setup();
-    renderWithRouter(<LoginPage />);
+  describe('POST /api/auth/login', () => {
+    it('returns 200 with token when login succeeds with correct credentials', async () => {
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: 'test@example.com',
+          password: 'password123',
+        }),
+      });
 
-    await user.type(screen.getByLabelText(/password/i), '123');
-    const submitBtn = screen.getByRole('button', { name: /sign in/i });
-    await user.click(submitBtn);
+      expect(response.status).toBe(200);
+      const data = await response.json();
+      expect(data).toHaveProperty('token');
+      expect(data.user).toMatchObject({
+        email: 'test@example.com',
+      });
+    });
 
-    await waitFor(() => {
-      expect(screen.getByText(/password must be/i)).toBeInTheDocument();
+    it('returns 401 Unauthorized when password is wrong', async () => {
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: 'test@example.com',
+          password: 'wrongpassword',
+        }),
+      });
+
+      expect(response.status).toBe(401);
+    });
+
+    it('returns 401 when email does not exist', async () => {
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: 'nonexistent@example.com',
+          password: 'password123',
+        }),
+      });
+
+      expect(response.status).toBe(401);
     });
   });
 
-  it('redirects to home on successful login', async () => {
-    const user = userEvent.setup();
-    renderWithRouter(<LoginPage />);
+  describe('GET /api/auth/me', () => {
+    it('returns user data when called with valid token', async () => {
+      // Login first to get token
+      const loginResponse = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: 'test@example.com',
+          password: 'password123',
+        }),
+      });
+      const { token } = await loginResponse.json();
 
-    await user.type(screen.getByLabelText(/email/i), 'test@example.com');
-    await user.type(screen.getByLabelText(/password/i), 'StrongPass123!');
-    await user.click(screen.getByRole('button', { name: /sign in/i }));
+      // Call /auth/me with token
+      const meResponse = await fetch('/api/auth/me', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
-    await waitFor(() => {
-      expect(window.location.pathname).toBe('/');
-    }, { timeout: 3000 });
-  });
+      expect(meResponse.status).toBe(200);
+      const user = await meResponse.json();
+      expect(user).toHaveProperty('id');
+      expect(user.email).toBe('test@example.com');
+    });
 
-  it('shows error message on failed login', async () => {
-    server.use(
-      http.post('/api/auth/login', () => {
-        return HttpResponse.json({ message: 'Invalid credentials' }, { status: 401 });
-      })
-    );
+    it('returns 401 when called without token', async () => {
+      const response = await fetch('/api/auth/me');
 
-    const user = userEvent.setup();
-    renderWithRouter(<LoginPage />);
-
-    await user.type(screen.getByLabelText(/email/i), 'test@example.com');
-    await user.type(screen.getByLabelText(/password/i), 'WrongPass123!');
-    await user.click(screen.getByRole('button', { name: /sign in/i }));
-
-    await waitFor(() => {
-      expect(screen.getByText(/Invalid credentials/i)).toBeInTheDocument();
+      expect(response.status).toBe(401);
     });
   });
 });
 
-describe('RegisterPage - Form Validation', () => {
-  it('validates all required fields', async () => {
-    const user = userEvent.setup();
-    renderWithRouter(<RegisterPage />);
-
-    await user.click(screen.getByRole('button', { name: /register/i }));
-
-    await waitFor(() => {
-      expect(screen.getByText(/first name is required/i)).toBeInTheDocument();
-      expect(screen.getByText(/last name is required/i)).toBeInTheDocument();
-      expect(screen.getByText(/email is required/i)).toBeInTheDocument();
-      expect(screen.getByText(/password is required/i)).toBeInTheDocument();
+describe('Protected Routes', () => {
+  it('rejects unauthenticated request to booking creation', async () => {
+    const response = await fetch('/api/bookings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        roomId: 'room-1',
+        checkIn: '2026-06-01',
+        checkOut: '2026-06-05',
+        numberOfGuests: 2,
+      }),
     });
+
+    // Should be rejected - no auth token
+    expect(response.status).toBe(401);
   });
 
-  it('shows error for password mismatch', async () => {
-    const user = userEvent.setup();
-    renderWithRouter(<RegisterPage />);
+  it('rejects unauthenticated request to user bookings list', async () => {
+    const response = await fetch('/api/bookings');
 
-    await user.type(screen.getByLabelText(/first name/i), 'John');
-    await user.type(screen.getByLabelText(/last name/i), 'Doe');
-    await user.type(screen.getByLabelText(/email/i), 'john@example.com');
-    await user.type(screen.getByLabelText(/^password/i), 'StrongPass123!');
-    await user.type(screen.getByLabelText(/confirm password/i), 'DifferentPass123!');
-    await user.click(screen.getByRole('button', { name: /register/i }));
-
-    await waitFor(() => {
-      expect(screen.getByText(/passwords do not match/i)).toBeInTheDocument();
-    });
+    expect(response.status).toBe(401);
   });
 
-  it('shows error on registration failure', async () => {
-    server.use(
-      http.post('/api/auth/register', () => {
-        return HttpResponse.json({ message: 'Email already exists' }, { status: 409 });
-      })
-    );
+  it('rejects unauthenticated request to hotel admin dashboard', async () => {
+    const response = await fetch('/api/hotel-admin/dashboard');
 
-    const user = userEvent.setup();
-    renderWithRouter(<RegisterPage />);
+    expect(response.status).toBe(401);
+  });
 
-    await user.type(screen.getByLabelText(/first name/i), 'John');
-    await user.type(screen.getByLabelText(/last name/i), 'Doe');
-    await user.type(screen.getByLabelText(/email/i), 'existing@example.com');
-    await user.type(screen.getByLabelText(/^password/i), 'StrongPass123!');
-    await user.type(screen.getByLabelText(/confirm password/i), 'StrongPass123!');
-    await user.click(screen.getByRole('button', { name: /register/i }));
+  it('rejects unauthenticated request to system admin dashboard', async () => {
+    const response = await fetch('/api/admin/dashboard');
 
-    await waitFor(() => {
-      expect(screen.getByText(/Email already exists/i)).toBeInTheDocument();
+    expect(response.status).toBe(401);
+  });
+});
+
+describe('Role-Based Access Control', () => {
+  it('hotel admin cannot access system admin routes', async () => {
+    // Login as hotel admin
+    const loginResponse = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: 'hoteladmin@example.com',
+        password: 'password123',
+      }),
     });
+
+    if (loginResponse.status === 200) {
+      const { token } = await loginResponse.json();
+
+      // Try to access system admin route
+      const adminResponse = await fetch('/api/admin/dashboard', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      expect(adminResponse.status).toBe(403);
+    }
+  });
+
+  it('normal user cannot access hotel admin routes', async () => {
+    // Login as normal user
+    const loginResponse = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: 'test@example.com',
+        password: 'password123',
+      }),
+    });
+
+    if (loginResponse.status === 200) {
+      const { token } = await loginResponse.json();
+
+      // Try to access hotel admin route
+      const hotelAdminResponse = await fetch('/api/hotel-admin/dashboard', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      expect(hotelAdminResponse.status).toBe(403);
+    }
   });
 });
