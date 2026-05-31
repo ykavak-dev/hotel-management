@@ -8,6 +8,24 @@ import { queryClient } from './lib/api/queryClient';
 import App from './App';
 import './index.css';
 
+// Conditionally start MSW in browser (not in tests)
+async function startMocking() {
+  if (typeof window !== 'undefined' && !window.location.pathname.includes('/api')) {
+    try {
+      const { worker } = await import('./mocks/browser');
+      await worker.start({
+        onUnhandledRequest: 'bypass',
+      });
+    } catch (e) {
+      console.warn('MSW failed to start:', e);
+    }
+  }
+}
+
+if (typeof window !== 'undefined') {
+  startMocking();
+}
+
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
